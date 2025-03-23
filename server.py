@@ -22,13 +22,12 @@ CONFIG = {
 # Valid credentials
 VALID_CREDENTIALS = {"admin": "admin"}
 
-# Setup logging
+# Setup logging to terminal
+logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename='server.log'
+    format='%(asctime)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger(__name__)
 
 # Thread-safe file operations
 file_lock = Lock()
@@ -44,7 +43,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             cookies = http.cookies.SimpleCookie(self.headers["Cookie"])
             session = cookies.get("session")
             if session and session.value == "authenticated":
-                #timestamp = cookies.get("timestamp") # commented timeout check
+                #timestamp = cookies.get("timestamp")  # Commented timeout check
                 #if timestamp and (time.time() - float(timestamp.value)) < CONFIG['SESSION_TIMEOUT']:
                     return True
         return False
@@ -58,6 +57,8 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             return
         
         if self.path == "/":
+            self.serve_index()
+        elif self.path == "/api/files":
             self.list_files()
         elif self.path == "/upload":
             self.show_upload_form()
@@ -105,26 +106,26 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Location", "/static/login.html")
             self.end_headers()
 
+    def serve_index(self):
+        """Serve the index.html file for the root path."""
+        with open(os.path.join(CONFIG['STATIC_DIR'], 'index.html'), 'r') as file:
+            content = file.read()
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html')
+        self.end_headers()
+        self.wfile.write(content.encode())
+
     def list_files(self):
+        """Return JSON list of files for API endpoint."""
         with file_lock:
             if not os.path.exists(CONFIG['UPLOAD_DIR']):
                 os.makedirs(CONFIG['UPLOAD_DIR'])
             files = os.listdir(CONFIG['UPLOAD_DIR'])
         
-        file_list = ''.join(
-            f'<li><a href="/files/{urllib.parse.quote(file)}">{file}</a> '
-            f'<form style="display:inline;" action="/delete/{urllib.parse.quote(file)}" method="post">'
-            f'<button type="submit" class="delete-button">Delete</button></form></li>'
-            for file in files
-        )
-        
-        with open(os.path.join(CONFIG['STATIC_DIR'], 'index.html'), 'r') as file:
-            content = file.read().replace("{file_list}", file_list or "<li>No files available</li>")
-        
         self.send_response(200)
-        self.send_header('Content-Type', 'text/html')
+        self.send_header('Content-Type', 'application/json')
         self.end_headers()
-        self.wfile.write(content.encode())
+        self.wfile.write(json.dumps({'files': files}).encode())
 
     def show_upload_form(self):
         with open(os.path.join(CONFIG['STATIC_DIR'], 'upload.html'), 'r') as file:
@@ -135,7 +136,6 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(content.encode())
 
     def serve_file(self):
-        """Serve a file while resetting session timer periodically."""
         filepath = os.path.join(CONFIG['UPLOAD_DIR'], urllib.parse.unquote(self.path[7:]))
         
         if os.path.isfile(filepath):
@@ -148,13 +148,12 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             self.send_header('Content-Disposition', f'attachment; filename="{os.path.basename(filepath)}"')
             self.end_headers()
 
-            chunk_size = 1024 * 64  # 64KB chunks
+            chunk_size = 1024 * 64
 
             with open(filepath, 'rb') as file:
                 while chunk := file.read(chunk_size):
                     self.wfile.write(chunk)
                     self.wfile.flush()
-                    
         else:
             self.send_response(404)
             self.end_headers()
@@ -192,13 +191,12 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             with open(filepath, 'wb') as f:
                 shutil.copyfileobj(file_item.file, f)
 
-        # Send JSON response instead of a redirect
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
         response = {"success": True, "message": "Upload successful", "filename": filename}
         self.wfile.write(json.dumps(response).encode())
-        
+
     def delete_file(self):
         filepath = os.path.join(CONFIG['UPLOAD_DIR'], urllib.parse.unquote(self.path[8:]))
         with file_lock:
@@ -209,7 +207,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
             else:
                 self.send_error_response(404, "File not found")
-                
+
     def serve_static(self):
         filepath = os.path.join(CONFIG['STATIC_DIR'], self.path[len('/static/'):])
         if os.path.isfile(filepath):

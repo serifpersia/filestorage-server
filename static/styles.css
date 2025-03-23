@@ -50,16 +50,22 @@ ul {
     transition: background-color 0.2s; /* Smooth hover transition */
 }
 
-.file-list li:hover {
-    background-color: #383838; /* Lighter on hover for feedback */
+/* Ensure the li doesn't overflow its container */
+.file-list li {
+    overflow: hidden; /* Prevents content from spilling out */
 }
 
 /* Links */
 .file-list a {
     color: #90caf9; /* Soft blue for links */
     text-decoration: none;
+    white-space: nowrap; /* Keeps text on one line */
+    overflow: hidden; /* Hides excess text */
+    text-overflow: ellipsis; /* Adds "..." for truncated text */
+    max-width: calc(100% - 100px); /* Leaves space for the delete button */
 }
 
+/* Ensure link behaves well on hover */
 .file-list a:hover {
     text-decoration: underline; /* Underline on hover for clarity */
 }
@@ -83,6 +89,8 @@ ul {
 /* Delete Button Specific */
 .delete-button {
     background-color: #ff4444; /* Red for delete actions */
+    flex-shrink: 0; /* Prevents button from shrinking */
+    margin-left: 10px; /* Adds spacing between link and button */
 }
 
 .delete-button:hover {
@@ -181,4 +189,27 @@ ul {
 
 .popup button:hover {
     background-color: #1565c0;
+}
+
+/* Confirmation Popup Buttons */
+.popup div {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 15px;
+}
+
+.popup .confirm-btn {
+    background-color: #2979ff; /* Blue for confirm */
+}
+
+.popup .confirm-btn:hover {
+    background-color: #1565c0;
+}
+
+.popup .cancel-btn {
+    background-color: #ff4444; /* Red for cancel */
+}
+
+.popup .cancel-btn:hover {
+    background-color: #cc0000;
 }
