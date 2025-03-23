@@ -20,11 +20,6 @@ function handleUpload(e) {
         return;
     }
 
-    if (file.size > 100 * 1024 * 1024) { // 100MB limit
-        showPopup("File size exceeds 100MB limit.");
-        return;
-    }
-
     const formData = new FormData();
     formData.append('file', file);
 
@@ -41,18 +36,28 @@ function handleUpload(e) {
         }
     });
 
-    xhr.addEventListener('load', () => {
-        if (xhr.status === 302) {
-            progressText.textContent = 'Upload Complete!';
-            setTimeout(() => {
-                progressModal.style.display = 'none';
-                window.location.href = '/';
-            }, 1000);
-        } else {
-            showPopup(`Upload failed: ${xhr.statusText}`);
-            progressModal.style.display = 'none';
-        }
-    });
+	xhr.addEventListener('load', () => {
+		console.log("Response Status:", xhr.status);
+		console.log("Response Text:", xhr.responseText); // Debugging
+
+		try {
+			const jsonResponse = JSON.parse(xhr.responseText);
+			if (jsonResponse.success) {
+				progressText.textContent = 'Upload Complete!';
+				setTimeout(() => {
+					progressModal.style.display = 'none';
+					window.location.href = '/';
+				}, 1000);
+			} else {
+				showPopup(`Upload failed: ${jsonResponse.message}`);
+				progressModal.style.display = 'none';
+			}
+		} catch (e) {
+			showPopup("Upload failed: Invalid server response.");
+			progressModal.style.display = 'none';
+		}
+	});
+
 
     xhr.addEventListener('error', () => {
         showPopup("Upload failed due to network error.");

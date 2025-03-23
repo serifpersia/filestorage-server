@@ -9,13 +9,14 @@ from threading import Lock
 import time
 import shutil
 import cgi
+import json
+
 # Configuration
 CONFIG = {
     'UPLOAD_DIR': 'files',
     'STATIC_DIR': 'static',
     'PORT': 8000,
-    'MAX_FILE_SIZE': 100 * 1024 * 1024,  # 100MB limit
-    'SESSION_TIMEOUT': 100  # 10 seconds session timeout
+    'SESSION_TIMEOUT': 360
 }
 
 # Valid credentials
@@ -43,8 +44,8 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             cookies = http.cookies.SimpleCookie(self.headers["Cookie"])
             session = cookies.get("session")
             if session and session.value == "authenticated":
-                timestamp = cookies.get("timestamp")
-                if timestamp and (time.time() - float(timestamp.value)) < CONFIG['SESSION_TIMEOUT']:
+                #timestamp = cookies.get("timestamp") # commented timeout check
+                #if timestamp and (time.time() - float(timestamp.value)) < CONFIG['SESSION_TIMEOUT']:
                     return True
         return False
 
@@ -134,25 +135,33 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(content.encode())
 
     def serve_file(self):
+        """Serve a file while resetting session timer periodically."""
         filepath = os.path.join(CONFIG['UPLOAD_DIR'], urllib.parse.unquote(self.path[7:]))
+        
         if os.path.isfile(filepath):
             self.send_response(200)
             mime_type, _ = mimetypes.guess_type(filepath)
+            file_size = os.path.getsize(filepath)
+
             self.send_header('Content-Type', mime_type or 'application/octet-stream')
+            self.send_header('Content-Length', str(file_size))
             self.send_header('Content-Disposition', f'attachment; filename="{os.path.basename(filepath)}"')
             self.end_headers()
+
+            chunk_size = 1024 * 64  # 64KB chunks
+
             with open(filepath, 'rb') as file:
-                shutil.copyfileobj(file, self.wfile)
+                while chunk := file.read(chunk_size):
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+                    
         else:
             self.send_response(404)
             self.end_headers()
-            
+
     def upload_file(self):
         content_length = int(self.headers.get('Content-Length', 0))
-        if content_length > CONFIG['MAX_FILE_SIZE']:
-            self.send_error_response(413, "File too large")
-            return
-
+        
         content_type, pdict = cgi.parse_header(self.headers['Content-Type'])
         if content_type != 'multipart/form-data':
             self.send_error_response(400, "Invalid form data")
@@ -179,14 +188,17 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         with file_lock:
             if os.path.exists(filepath):
                 filepath = os.path.join(CONFIG['UPLOAD_DIR'], f"{int(time.time())}_{filename}")
-            
+
             with open(filepath, 'wb') as f:
                 shutil.copyfileobj(file_item.file, f)
-        
-        self.send_response(302)
-        self.send_header('Location', '/')
-        self.end_headers()
 
+        # Send JSON response instead of a redirect
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        response = {"success": True, "message": "Upload successful", "filename": filename}
+        self.wfile.write(json.dumps(response).encode())
+        
     def delete_file(self):
         filepath = os.path.join(CONFIG['UPLOAD_DIR'], urllib.parse.unquote(self.path[8:]))
         with file_lock:
