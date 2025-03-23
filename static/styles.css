@@ -1,0 +1,184 @@
+/* Reset default styles for consistency across browsers */
+body, h1, h2, ul {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Base Styles */
+body {
+    font-family: 'Segoe UI', Arial, sans-serif; /* Modern font with fallback */
+    background-color: #121212; /* Dark background for better contrast */
+    color: #e0e0e0; /* Light text color */
+    line-height: 1.6; /* Improved readability */
+    margin: 0;
+    padding: 0;
+}
+
+/* Container Styles */
+.container {
+    width: 90%;
+    max-width: 800px; /* Wider container for better content layout */
+    margin: 50px auto; /* Centered with top/bottom spacing */
+    padding: 20px;
+    background-color: #1e1e1e; /* Slightly lighter dark background */
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Subtle shadow for depth */
+}
+
+/* Headings */
+h1, h2 {
+    color: #f0f0f0; /* Slightly brighter for emphasis */
+    margin-bottom: 20px;
+}
+
+/* Lists */
+ul {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+/* File List Items */
+.file-list li {
+    margin: 15px 0;
+    padding: 15px;
+    background-color: #2c2c2c; /* Darker item background */
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.2s; /* Smooth hover transition */
+}
+
+.file-list li:hover {
+    background-color: #383838; /* Lighter on hover for feedback */
+}
+
+/* Links */
+.file-list a {
+    color: #90caf9; /* Soft blue for links */
+    text-decoration: none;
+}
+
+.file-list a:hover {
+    text-decoration: underline; /* Underline on hover for clarity */
+}
+
+/* Buttons */
+.button, .delete-button {
+    background-color: #2979ff; /* Bright blue for primary actions */
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s; /* Smooth color transition */
+    text-decoration: none; /* For <a> tags styled as buttons */
+}
+
+.button:hover, .delete-button:hover {
+    background-color: #1565c0; /* Darker blue on hover */
+}
+
+/* Delete Button Specific */
+.delete-button {
+    background-color: #ff4444; /* Red for delete actions */
+}
+
+.delete-button:hover {
+    background-color: #cc0000; /* Darker red on hover */
+}
+
+/* Controls Section */
+.controls {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 10px; /* Spacing between buttons */
+}
+
+/* Upload Form */
+.upload-form {
+    margin-bottom: 20px;
+}
+
+.file-input {
+    display: block;
+    margin-bottom: 15px;
+    padding: 8px;
+    width: 100%;
+    background-color: #2c2c2c; /* Matches list item background */
+    color: #fff;
+    border: 1px solid #444; /* Subtle border */
+    border-radius: 5px;
+}
+
+/* Progress Modal */
+.progress-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8); /* Dark overlay */
+    z-index: 1000;
+}
+
+.progress-modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #2e2e2e; /* Slightly lighter than body */
+    padding: 20px; /* Reduced padding for compactness */
+    border-radius: 8px;
+    text-align: center;
+    width: 350px; /* Slightly wider for better text fit */
+}
+
+.progress-bar {
+    width: 100%;
+    height: 20px;
+    background-color: #444; /* Darker base for contrast */
+    border-radius: 5px;
+    overflow: hidden;
+    margin-top: 15px;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    width: 0;
+    background-color: #1e90ff; /* Bright blue for visibility */
+    transition: width 0.4s ease; /* Smooth progress animation */
+}
+
+/* Custom Popup */
+.popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #2e2e2e;
+    padding: 20px;
+    color: #f0f0f0;
+    border-radius: 8px;
+    text-align: center;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* Shadow for depth */
+    z-index: 1000;
+    max-width: 400px; /* Limits width for long messages */
+    word-wrap: break-word; /* Prevents overflow */
+}
+
+.popup button {
+    background-color: #2979ff;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+.popup button:hover {
+    background-color: #1565c0;
+}

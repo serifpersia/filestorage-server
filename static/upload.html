@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload File</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Upload File</h1>
+        <form id="upload-form" enctype="multipart/form-data" method="post" action="/upload" class="upload-form">
+            <input type="file" name="file" class="file-input" id="file-input" required>
+            <div class="controls">
+                <button type="submit" class="button">Upload</button>
+                <a href="/" class="button">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <div id="progress-modal" class="progress-modal">
+        <div class="progress-modal-content">
+            <p id="progress-text">Uploading...</p>
+            <div class="progress-bar">
+                <div class="progress-bar-fill" id="progress-bar-fill"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/scripts.js"></script>
+</body>
+</html>
