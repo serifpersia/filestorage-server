@@ -1,34 +1,51 @@
 /* Reset default styles for consistency across browsers */
-body, h1, h2, ul {
+body, h1, h2, ul, p, button, a {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+/* Define CSS Variables */
+:root {
+    --primary-color: #2979ff;
+    --secondary-color: #1565c0;
+    --background-color: #121212;
+    --text-color: #e0e0e0;
+    --accent-color: #90caf9;
+    --darker-background: #1e1e1e;
+    --item-background: #2c2c2c;
+    --border-radius: 8px;
+    --shadow-color: rgba(0, 0, 0, 0.3);
+    --transition-duration: 0.3s;
 }
 
 /* Base Styles */
 body {
-    font-family: 'Segoe UI', Arial, sans-serif; /* Modern font with fallback */
-    background-color: #121212; /* Dark background for better contrast */
-    color: #e0e0e0; /* Light text color */
-    line-height: 1.6; /* Improved readability */
+    background-color: var(--background-color);
+    color: var(--text-color);
+    line-height: 1.6;
     margin: 0;
     padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
 }
 
 /* Container Styles */
 .container {
     width: 90%;
-    max-width: 800px; /* Wider container for better content layout */
-    margin: 50px auto; /* Centered with top/bottom spacing */
+    max-width: 800px;
+    margin: 50px auto;
     padding: 20px;
-    background-color: #1e1e1e; /* Slightly lighter dark background */
-    border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Subtle shadow for depth */
+    background-color: var(--darker-background);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 8px var(--shadow-color);
 }
 
 /* Headings */
 h1, h2 {
-    color: #f0f0f0; /* Slightly brighter for emphasis */
+    color: #f0f0f0;
     margin-bottom: 20px;
 }
 
@@ -42,66 +59,92 @@ ul {
 .file-list li {
     margin: 15px 0;
     padding: 15px;
-    background-color: #2c2c2c; /* Darker item background */
-    border-radius: 8px;
+    background-color: var(--item-background);
+    border-radius: var(--border-radius);
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    transition: background-color 0.2s; /* Smooth hover transition */
+    transition: background-color var(--transition-duration);
+    word-break: break-all; /* Prevent long words from breaking layout */
 }
 
-/* Ensure the li doesn't overflow its container */
-.file-list li {
-    overflow: hidden; /* Prevents content from spilling out */
+.file-list li:hover {
+    background-color: #333;
+}
+
+/* File Information */
+.file-icon {
+    font-size: 1.5em;
+    margin-right: 10px;
+	line-height: 1; /* Align the icon vertically */
+}
+
+.file-size, .file-modified {
+    font-size: 0.85em;
+    color: #aaa;
+    margin-left: auto; /* Push file size and modified to the right */
+    margin-right: 10px;
 }
 
 /* Links */
 .file-list a {
-    color: #90caf9; /* Soft blue for links */
+    color: var(--accent-color);
     text-decoration: none;
-    white-space: nowrap; /* Keeps text on one line */
-    overflow: hidden; /* Hides excess text */
-    text-overflow: ellipsis; /* Adds "..." for truncated text */
-    max-width: calc(100% - 100px); /* Leaves space for the delete button */
+    transition: color var(--transition-duration);
+    flex-grow: 1; /* Allow link to take up remaining space */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap; /* Prevent wrapping of the link text */
 }
 
-/* Ensure link behaves well on hover */
 .file-list a:hover {
-    text-decoration: underline; /* Underline on hover for clarity */
+    text-decoration: underline;
+    color: #fff;
 }
 
 /* Buttons */
-.button, .delete-button {
-    background-color: #2979ff; /* Bright blue for primary actions */
+.button, .delete-button, .rename-button {
+    background-color: var(--primary-color);
     color: white;
     padding: 10px 20px;
     border: none;
-    border-radius: 5px;
+    border-radius: var(--border-radius);
     cursor: pointer;
-    transition: background-color 0.3s; /* Smooth color transition */
-    text-decoration: none; /* For <a> tags styled as buttons */
+    transition: background-color var(--transition-duration);
+    text-decoration: none;
+    font-size: 0.9em; /* Make the font slightly smaller for better button fit */
+    margin-left: 10px; /* space between buttons */
+    flex-shrink: 0; /* Prevent the button from shrinking */
 }
 
-.button:hover, .delete-button:hover {
-    background-color: #1565c0; /* Darker blue on hover */
+.button:hover, .delete-button:hover, .rename-button:hover {
+    background-color: var(--secondary-color);
 }
 
 /* Delete Button Specific */
 .delete-button {
     background-color: #ff4444; /* Red for delete actions */
-    flex-shrink: 0; /* Prevents button from shrinking */
-    margin-left: 10px; /* Adds spacing between link and button */
 }
 
 .delete-button:hover {
     background-color: #cc0000; /* Darker red on hover */
 }
 
+/* Rename Button Specific */
+.rename-button {
+    background-color: #4CAF50; /* Green for rename */
+}
+
+.rename-button:hover {
+    background-color: #388E3C; /* Darker green on hover */
+}
+
 /* Controls Section */
 .controls {
     margin-bottom: 20px;
     display: flex;
-    gap: 10px; /* Spacing between buttons */
+    gap: 10px;
+    align-items: center; /* Vertically align buttons */
+    flex-wrap: wrap; /* Allow buttons to wrap on smaller screens */
 }
 
 /* Upload Form */
@@ -114,10 +157,10 @@ ul {
     margin-bottom: 15px;
     padding: 8px;
     width: 100%;
-    background-color: #2c2c2c; /* Matches list item background */
+    background-color: var(--item-background);
     color: #fff;
-    border: 1px solid #444; /* Subtle border */
-    border-radius: 5px;
+    border: 1px solid #444;
+    border-radius: var(--border-radius);
 }
 
 /* Progress Modal */
@@ -128,7 +171,7 @@ ul {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.8); /* Dark overlay */
+    background-color: rgba(0, 0, 0, 0.8);
     z-index: 1000;
 }
 
@@ -137,17 +180,17 @@ ul {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background-color: #2e2e2e; /* Slightly lighter than body */
-    padding: 20px; /* Reduced padding for compactness */
-    border-radius: 8px;
+    background-color: #2e2e2e;
+    padding: 20px;
+    border-radius: var(--border-radius);
     text-align: center;
-    width: 350px; /* Slightly wider for better text fit */
+    width: 350px;
 }
 
 .progress-bar {
     width: 100%;
     height: 20px;
-    background-color: #444; /* Darker base for contrast */
+    background-color: #444;
     border-radius: 5px;
     overflow: hidden;
     margin-top: 15px;
@@ -156,8 +199,8 @@ ul {
 .progress-bar-fill {
     height: 100%;
     width: 0;
-    background-color: #1e90ff; /* Bright blue for visibility */
-    transition: width 0.4s ease; /* Smooth progress animation */
+    background-color: #1e90ff;
+    transition: width 0.4s ease;
 }
 
 /* Custom Popup */
@@ -169,26 +212,26 @@ ul {
     background-color: #2e2e2e;
     padding: 20px;
     color: #f0f0f0;
-    border-radius: 8px;
+    border-radius: var(--border-radius);
     text-align: center;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* Shadow for depth */
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
     z-index: 1000;
-    max-width: 400px; /* Limits width for long messages */
-    word-wrap: break-word; /* Prevents overflow */
+    max-width: 400px;
+    word-wrap: break-word;
 }
 
 .popup button {
-    background-color: #2979ff;
+    background-color: var(--primary-color);
     color: white;
     padding: 10px 15px;
     border: none;
-    border-radius: 5px;
+    border-radius: var(--border-radius);
     cursor: pointer;
     margin-top: 10px;
 }
 
 .popup button:hover {
-    background-color: #1565c0;
+    background-color: var(--secondary-color);
 }
 
 /* Confirmation Popup Buttons */
@@ -199,11 +242,11 @@ ul {
 }
 
 .popup .confirm-btn {
-    background-color: #2979ff; /* Blue for confirm */
+    background-color: var(--primary-color); /* Blue for confirm */
 }
 
 .popup .confirm-btn:hover {
-    background-color: #1565c0;
+    background-color: var(--secondary-color);
 }
 
 .popup .cancel-btn {
@@ -214,20 +257,120 @@ ul {
     background-color: #cc0000;
 }
 
-.footer {
+/* Footer */
+footer {
     text-align: center;
     padding: 20px 0;
-    margin-top: 20px;
-    color: #e0e0e0;
+    margin-top: auto; /* Push footer to the bottom */
+    color: var(--text-color);
     font-size: 14px;
-    border-top: 1px solid #333; /* Subtle separator */
+    border-top: 1px solid #333;
 }
-
-.footer a {
-    color: #90caf9; /* Matches link color from file-list */
+footer a {
+    color: var(--primary-color);
     text-decoration: none;
+    transition: color 0.3s ease;
 }
 
-.footer a:hover {
-    text-decoration: underline;
+footer a:hover {
+	color: var(--secondary-color);
+}
+
+.github-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	color: var(--github-color);
+}
+
+github-link:hover {
+	color: var(--primary-color);
+}
+
+/* Modal styles */
+.modal {
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 1; /* Sit on top */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scroll if needed */
+    background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+/* Modal Content/Box */
+.modal-content {
+    background-color: var(--darker-background);
+    margin: 15% auto; /* 15% from the top and centered */
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%; /* Could be more or less, depending on screen size */
+    max-width: 600px;
+    border-radius: var(--border-radius);
+    position: relative;
+}
+
+/* The Close Button */
+.close-button {
+    color: #aaa;
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-size: 28px;
+    font-weight: bold;
+    padding: 0 10px;
+    cursor: pointer;
+}
+
+.close-button:hover,
+.close-button:focus {
+    color: white;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+/* Modal Input */
+.modal-content input[type="text"] {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #555;
+    background-color: #333;
+    color: #fff;
+    border-radius: var(--border-radius);
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 600px) {
+    .container {
+        width: 95%;
+        margin: 20px auto;
+    }
+
+    .controls {
+        flex-direction: column;
+        align-items: stretch; /* Full width buttons on small screens */
+    }
+
+    .button, .delete-button, .rename-button {
+        margin-left: 0; /* Remove left margin for full width */
+        margin-bottom: 10px; /* Add some space between buttons */
+        width: 100%; /* Make buttons full width */
+    }
+
+    .file-size, .file-modified {
+        display: block; /* Stack file size and modified date */
+        margin-left: 0;
+    }
+
+    .file-list li {
+        flex-direction: column; /* Stack file information and buttons */
+        align-items: flex-start;
+    }
+
+    .file-list a {
+        margin-bottom: 5px; /* Add space between link and buttons */
+    }
 }

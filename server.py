@@ -10,6 +10,7 @@ import time
 import shutil
 import cgi
 import json
+from datetime import datetime
 
 # Configuration file path
 CONFIG_FILE = "config.json"
@@ -99,9 +100,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             cookies = http.cookies.SimpleCookie(self.headers["Cookie"])
             session = cookies.get("session")
             if session and session.value == "authenticated":
-                #timestamp = cookies.get("timestamp")  # Commented timeout check
-                #if timestamp and (time.time() - float(timestamp.value)) < CONFIG['SESSION_TIMEOUT']:
-                    return True
+                return True
         return False
 
     def do_GET(self):
@@ -143,6 +142,8 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             self.upload_file()
         elif self.path.startswith("/delete/"):
             self.delete_file()
+        elif self.path.startswith("/rename/"):
+            self.rename_file()
         else:
             self.send_response(404)
             self.end_headers()
@@ -166,21 +167,33 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Location", "/static/login.html")
             self.end_headers()
 
+      
     def serve_index(self):
         """Serve the index.html file for the root path."""
-        with open(os.path.join(CONFIG['STATIC_DIR'], 'index.html'), 'r') as file:
+        with open(os.path.join(CONFIG['STATIC_DIR'], 'index.html'), 'r', encoding='utf-8') as file:
             content = file.read()
         self.send_response(200)
-        self.send_header('Content-Type', 'text/html')
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.end_headers()
-        self.wfile.write(content.encode())
+        self.wfile.write(content.encode('utf-8'))
 
     def list_files(self):
-        """Return JSON list of files for API endpoint."""
+        """Return JSON list of files for API endpoint, including size and modified date."""
         with file_lock:
             if not os.path.exists(CONFIG['UPLOAD_DIR']):
                 os.makedirs(CONFIG['UPLOAD_DIR'])
-            files = os.listdir(CONFIG['UPLOAD_DIR'])
+            files = []
+            for filename in os.listdir(CONFIG['UPLOAD_DIR']):
+                filepath = os.path.join(CONFIG['UPLOAD_DIR'], filename)
+                if os.path.isfile(filepath):
+                    file_size = os.path.getsize(filepath)
+                    modified_time = os.path.getmtime(filepath)
+                    modified_date = datetime.fromtimestamp(modified_time).strftime('%Y-%m-%d %H:%M:%S')  # Format the date
+                    files.append({
+                        'name': filename,
+                        'size': file_size,
+                        'modified': modified_date
+                    })
         
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
@@ -188,13 +201,14 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps({'files': files}).encode())
 
     def show_upload_form(self):
-        with open(os.path.join(CONFIG['STATIC_DIR'], 'upload.html'), 'r') as file:
+        with open(os.path.join(CONFIG['STATIC_DIR'], 'upload.html'), 'r', encoding='utf-8') as file:
             content = file.read()
         self.send_response(200)
-        self.send_header('Content-Type', 'text/html')
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.end_headers()
-        self.wfile.write(content.encode())
+        self.wfile.write(content.encode('utf-8'))
 
+        
     def serve_file(self):
         filepath = os.path.join(CONFIG['UPLOAD_DIR'], urllib.parse.unquote(self.path[7:]))
         
@@ -267,6 +281,48 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
             else:
                 self.send_error_response(404, "File not found")
+
+    def rename_file(self):
+        """Handle file rename requests."""
+        # Extract the old filename from the path
+        old_filename = urllib.parse.unquote(self.path[8:])  # Remove "/rename/" and decode
+        old_filepath = os.path.join(CONFIG['UPLOAD_DIR'], old_filename)
+
+        # Get the new filename from the request body
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_length).decode('utf-8')
+        try:
+            request_data = json.loads(body)
+            new_filename = request_data.get('new_filename')
+        except json.JSONDecodeError:
+            self.send_error_response(400, "Invalid JSON")
+            return
+
+        if not new_filename:
+            self.send_error_response(400, "New filename is required")
+            return
+
+        new_filepath = os.path.join(CONFIG['UPLOAD_DIR'], new_filename)
+
+        with file_lock:
+            if not os.path.isfile(old_filepath):
+                self.send_error_response(404, "File not found")
+                return
+
+            if os.path.exists(new_filepath):
+                self.send_error_response(409, "File already exists")  # Conflict
+                return
+
+            try:
+                os.rename(old_filepath, new_filepath)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True, "message": "File renamed successfully"}).encode('utf-8'))
+
+            except Exception as e:
+                logger.error(f"Error renaming file: {e}")
+                self.send_error_response(500, "Failed to rename file")
 
     def serve_static(self):
         filepath = os.path.join(CONFIG['STATIC_DIR'], self.path[len('/static/'):])
