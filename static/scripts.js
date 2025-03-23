@@ -15,7 +15,6 @@ document.addEventListener('DOMContentLoaded', () => {
         uploadForm.addEventListener('submit', handleUpload);
     }
 
-    // Drag and drop functionality
     const uploadArea = document.getElementById('upload-area');
     const fileInput = document.getElementById('file-input');
 
@@ -32,20 +31,19 @@ document.addEventListener('DOMContentLoaded', () => {
         uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadArea.classList.remove('dragover');
-            fileInput.files = e.dataTransfer.files; // Assign dropped files to the input
-            // Consider triggering the upload automatically here
+            fileInput.files = e.dataTransfer.files;
         });
     }
 });
 
-let currentFilename = null; // Store the filename being renamed
+let currentFilename = null;
 
 function fetchFiles() {
     fetch('/api/files')
         .then(response => response.json())
         .then(data => {
             const fileList = document.getElementById('file-list');
-            fileList.innerHTML = ''; // Clear existing list
+            fileList.innerHTML = '';
             
             if (data.files.length === 0) {
                 fileList.innerHTML = '<li>No files available</li>';
@@ -54,7 +52,7 @@ function fetchFiles() {
 
             data.files.forEach(file => {
                 const li = document.createElement('li');
-                const fileIcon = getFileIcon(file.name); // Get file type icon
+                const fileIcon = getFileIcon(file.name);
                 li.innerHTML = `
                     <span class="file-icon">${fileIcon}</span>
                     <a href="/files/${encodeURIComponent(file.name)}">${file.name}</a>
@@ -66,7 +64,6 @@ function fetchFiles() {
                 fileList.appendChild(li);
             });
 
-            // Add event listeners to rename and delete buttons
             document.querySelectorAll('.rename-button').forEach(button => {
                 button.addEventListener('click', () => openRenameModal(button.dataset.filename));
             });
@@ -101,7 +98,7 @@ function getFileIcon(filename) {
         case 'zip':
         case 'rar': return '📦';
         case 'txt': return '📜';
-        default: return '📄'; // Default document icon
+        default: return '📄';
     }
 }
 
@@ -121,7 +118,7 @@ function deleteFile(filename) {
         })
         .then(response => {
             if (response.ok) {
-                fetchFiles(); // Refresh list after successful deletion
+                fetchFiles();
             } else {
                 showPopup('Failed to delete file');
             }
@@ -139,16 +136,16 @@ function openRenameModal(filename) {
     const renameConfirmBtn = document.getElementById('rename-confirm-btn');
     const closeButton = document.querySelector('.close-button');
 
-    currentFilename = filename; // Store the filename
+    currentFilename = filename;
 
-    newFilenameInput.value = filename; // Pre-fill the input with the current filename
+    newFilenameInput.value = filename;
     renameModal.style.display = "block";
 
     renameConfirmBtn.onclick = () => {
         const newFilename = newFilenameInput.value;
         if (newFilename && newFilename !== filename) {
             renameFile(filename, newFilename);
-            renameModal.style.display = "none"; // Hide the modal after renaming
+            renameModal.style.display = "none";
         } else {
             showPopup("Please enter a new filename.");
         }
@@ -158,7 +155,6 @@ function openRenameModal(filename) {
         renameModal.style.display = "none";
     };
 
-    // Close the modal if the user clicks outside of it
     window.onclick = (event) => {
         if (event.target == renameModal) {
             renameModal.style.display = "none";
@@ -176,7 +172,7 @@ function renameFile(oldFilename, newFilename) {
     })
     .then(response => {
         if (response.ok) {
-            fetchFiles(); // Refresh file list
+            fetchFiles();
             showPopup("File renamed successfully.");
         } else {
             showPopup("Failed to rename file.");
@@ -191,7 +187,7 @@ function renameFile(oldFilename, newFilename) {
 function handleUpload(e) {
     e.preventDefault();
     const fileInput = document.getElementById('file-input');
-    const file = fileInput.files[0]; //Only one file
+    const file = fileInput.files[0];
 
     if (!file) {
         showPopup("Please select a file to upload.");
@@ -216,7 +212,7 @@ function handleUpload(e) {
 
     xhr.addEventListener('load', () => {
         console.log("Response Status:", xhr.status);
-        console.log("Response Text:", xhr.responseText); // Debugging
+        console.log("Response Text:", xhr.responseText);
 
         try {
             const jsonResponse = JSON.parse(xhr.responseText);
@@ -266,7 +262,6 @@ function showConfirmPopup(message, onConfirm) {
     `;
     document.body.appendChild(popup);
 
-    // Add event listeners for buttons
     popup.querySelector('.confirm-btn').addEventListener('click', () => {
         onConfirm();
         popup.remove();

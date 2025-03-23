@@ -1,12 +1,10 @@
-/* Reset default styles for consistency across browsers */
-body, h1, h2, ul, p, button, a {
+body, h1, h2, ul, p, button, a, input {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
     font-family: 'Segoe UI', Arial, sans-serif;
 }
 
-/* Define CSS Variables */
 :root {
     --primary-color: #2979ff;
     --secondary-color: #1565c0;
@@ -20,7 +18,6 @@ body, h1, h2, ul, p, button, a {
     --transition-duration: 0.3s;
 }
 
-/* Base Styles */
 body {
     background-color: var(--background-color);
     color: var(--text-color);
@@ -30,9 +27,9 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
-/* Container Styles */
 .container {
     width: 90%;
     max-width: 800px;
@@ -41,21 +38,19 @@ body {
     background-color: var(--darker-background);
     border-radius: var(--border-radius);
     box-shadow: 0 4px 8px var(--shadow-color);
+    overflow-x: hidden;
 }
 
-/* Headings */
 h1, h2 {
     color: #f0f0f0;
     margin-bottom: 20px;
 }
 
-/* Lists */
 ul {
     list-style-type: none;
     padding-left: 0;
 }
 
-/* File List Items */
 .file-list li {
     margin: 15px 0;
     padding: 15px;
@@ -64,36 +59,34 @@ ul {
     display: flex;
     align-items: center;
     transition: background-color var(--transition-duration);
-    word-break: break-all; /* Prevent long words from breaking layout */
+    word-break: break-all;
 }
 
 .file-list li:hover {
     background-color: #333;
 }
 
-/* File Information */
 .file-icon {
     font-size: 1.5em;
     margin-right: 10px;
-	line-height: 1; /* Align the icon vertically */
+    line-height: 1;
 }
 
 .file-size, .file-modified {
     font-size: 0.85em;
     color: #aaa;
-    margin-left: auto; /* Push file size and modified to the right */
+    margin-left: auto;
     margin-right: 10px;
 }
 
-/* Links */
 .file-list a {
     color: var(--accent-color);
     text-decoration: none;
     transition: color var(--transition-duration);
-    flex-grow: 1; /* Allow link to take up remaining space */
+    flex-grow: 1;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap; /* Prevent wrapping of the link text */
+    white-space: nowrap;
 }
 
 .file-list a:hover {
@@ -101,7 +94,6 @@ ul {
     color: #fff;
 }
 
-/* Buttons */
 .button, .delete-button, .rename-button {
     background-color: var(--primary-color);
     color: white;
@@ -111,43 +103,40 @@ ul {
     cursor: pointer;
     transition: background-color var(--transition-duration);
     text-decoration: none;
-    font-size: 0.9em; /* Make the font slightly smaller for better button fit */
-    margin-left: 10px; /* space between buttons */
-    flex-shrink: 0; /* Prevent the button from shrinking */
+    font-size: 0.9em;
+    margin-left: 10px;
+    flex-shrink: 0;
+    display: inline-block;
 }
 
 .button:hover, .delete-button:hover, .rename-button:hover {
     background-color: var(--secondary-color);
 }
 
-/* Delete Button Specific */
 .delete-button {
-    background-color: #ff4444; /* Red for delete actions */
+    background-color: #ff4444;
 }
 
 .delete-button:hover {
-    background-color: #cc0000; /* Darker red on hover */
+    background-color: #cc0000;
 }
 
-/* Rename Button Specific */
 .rename-button {
-    background-color: #4CAF50; /* Green for rename */
+    background-color: #4CAF50;
 }
 
 .rename-button:hover {
-    background-color: #388E3C; /* Darker green on hover */
+    background-color: #388E3C;
 }
 
-/* Controls Section */
 .controls {
     margin-bottom: 20px;
     display: flex;
     gap: 10px;
-    align-items: center; /* Vertically align buttons */
-    flex-wrap: wrap; /* Allow buttons to wrap on smaller screens */
+    align-items: center;
+    flex-wrap: wrap;
 }
 
-/* Upload Form */
 .upload-form {
     margin-bottom: 20px;
 }
@@ -155,15 +144,15 @@ ul {
 .file-input {
     display: block;
     margin-bottom: 15px;
-    padding: 8px;
+    padding: 10px;
     width: 100%;
     background-color: var(--item-background);
     color: #fff;
     border: 1px solid #444;
     border-radius: var(--border-radius);
+    font-size: 1em;
 }
 
-/* Progress Modal */
 .progress-modal {
     display: none;
     position: fixed;
@@ -203,7 +192,6 @@ ul {
     transition: width 0.4s ease;
 }
 
-/* Custom Popup */
 .popup {
     position: fixed;
     top: 50%;
@@ -234,7 +222,6 @@ ul {
     background-color: var(--secondary-color);
 }
 
-/* Confirmation Popup Buttons */
 .popup div {
     display: flex;
     justify-content: space-around;
@@ -242,7 +229,7 @@ ul {
 }
 
 .popup .confirm-btn {
-    background-color: var(--primary-color); /* Blue for confirm */
+    background-color: var(--primary-color);
 }
 
 .popup .confirm-btn:hover {
@@ -250,18 +237,17 @@ ul {
 }
 
 .popup .cancel-btn {
-    background-color: #ff4444; /* Red for cancel */
+    background-color: #ff4444;
 }
 
 .popup .cancel-btn:hover {
     background-color: #cc0000;
 }
 
-/* Footer */
 footer {
     text-align: center;
     padding: 20px 0;
-    margin-top: auto; /* Push footer to the bottom */
+    margin-top: auto;
     color: var(--text-color);
     font-size: 14px;
     border-top: 1px solid #333;
@@ -273,46 +259,43 @@ footer a {
 }
 
 footer a:hover {
-	color: var(--secondary-color);
+    color: var(--secondary-color);
 }
 
 .github-link {
-	display: inline-flex;
-	align-items: center;
-	gap: 5px;
-	color: var(--github-color);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--github-color);
 }
 
 github-link:hover {
-	color: var(--primary-color);
+    color: var(--primary-color);
 }
 
-/* Modal styles */
 .modal {
-    display: none; /* Hidden by default */
-    position: fixed; /* Stay in place */
-    z-index: 1; /* Sit on top */
+    display: none;
+    position: fixed;
+    z-index: 1;
     left: 0;
     top: 0;
-    width: 100%; /* Full width */
-    height: 100%; /* Full height */
-    overflow: auto; /* Enable scroll if needed */
-    background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.4);
 }
 
-/* Modal Content/Box */
 .modal-content {
     background-color: var(--darker-background);
-    margin: 15% auto; /* 15% from the top and centered */
+    margin: 15% auto;
     padding: 20px;
     border: 1px solid #888;
-    width: 80%; /* Could be more or less, depending on screen size */
+    width: 80%;
     max-width: 600px;
     border-radius: var(--border-radius);
     position: relative;
 }
 
-/* The Close Button */
 .close-button {
     color: #aaa;
     position: absolute;
@@ -331,7 +314,6 @@ github-link:hover {
     cursor: pointer;
 }
 
-/* Modal Input */
 .modal-content input[type="text"] {
     width: 100%;
     padding: 10px;
@@ -342,7 +324,6 @@ github-link:hover {
     border-radius: var(--border-radius);
 }
 
-/* Responsive adjustments */
 @media screen and (max-width: 600px) {
     .container {
         width: 95%;
@@ -351,26 +332,28 @@ github-link:hover {
 
     .controls {
         flex-direction: column;
-        align-items: stretch; /* Full width buttons on small screens */
+        align-items: stretch;
     }
 
     .button, .delete-button, .rename-button {
-        margin-left: 0; /* Remove left margin for full width */
-        margin-bottom: 10px; /* Add some space between buttons */
-        width: 100%; /* Make buttons full width */
+        margin-left: 0;
+        margin-bottom: 10px;
+        width: 100%;
+        padding: 12px;
+        font-size: 1em;
     }
 
     .file-size, .file-modified {
-        display: block; /* Stack file size and modified date */
+        display: block;
         margin-left: 0;
     }
 
     .file-list li {
-        flex-direction: column; /* Stack file information and buttons */
+        flex-direction: column;
         align-items: flex-start;
     }
 
     .file-list a {
-        margin-bottom: 5px; /* Add space between link and buttons */
+        margin-bottom: 5px;
     }
 }
