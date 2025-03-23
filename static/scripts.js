@@ -159,3 +159,9 @@ function showConfirmPopup(message, onConfirm) {
         popup.remove();
     });
 }
+
+document.getElementById('logout-btn')?.addEventListener('click', () => {
+    fetch('/logout', { method: 'POST' })
+        .then(() => window.location.href = '/static/login.html')
+        .catch(error => console.error('Logout error:', error));
+});

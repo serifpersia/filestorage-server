@@ -213,3 +213,21 @@ ul {
 .popup .cancel-btn:hover {
     background-color: #cc0000;
 }
+
+.footer {
+    text-align: center;
+    padding: 20px 0;
+    margin-top: 20px;
+    color: #e0e0e0;
+    font-size: 14px;
+    border-top: 1px solid #333; /* Subtle separator */
+}
+
+.footer a {
+    color: #90caf9; /* Matches link color from file-list */
+    text-decoration: none;
+}
+
+.footer a:hover {
+    text-decoration: underline;
+}

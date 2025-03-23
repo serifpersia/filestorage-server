@@ -11,16 +11,19 @@ import shutil
 import cgi
 import json
 
-# Configuration
-CONFIG = {
+# Configuration file path
+CONFIG_FILE = "config.json"
+
+# Default configuration
+DEFAULT_CONFIG = {
     'UPLOAD_DIR': 'files',
     'STATIC_DIR': 'static',
     'PORT': 8000,
     'SESSION_TIMEOUT': 360
 }
 
-# Valid credentials
-VALID_CREDENTIALS = {"admin": "admin"}
+# Global configuration
+CONFIG = {}
 
 # Setup logging to terminal
 logger = logging.getLogger(__name__)
@@ -32,9 +35,62 @@ logging.basicConfig(
 # Thread-safe file operations
 file_lock = Lock()
 
+def load_or_create_config():
+    """Load config from file or create a new one if it doesn't exist."""
+    global CONFIG
+
+    # Check if the config file exists
+    if os.path.exists(CONFIG_FILE):
+        logger.info(f"Loading configuration from {CONFIG_FILE}...")
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                CONFIG = json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load configuration: {e}")
+            exit(1)
+    else:
+        logger.info("Configuration file not found. Creating a new one...")
+        CONFIG = DEFAULT_CONFIG.copy()
+        while True:
+            # Prompt user for configuration details
+            username = input("Enter admin username: ").strip()
+            password = input("Enter admin password: ").strip()
+            port = input(f"Enter server port (default: {DEFAULT_CONFIG['PORT']}): ").strip() or DEFAULT_CONFIG['PORT']
+            session_timeout = input(f"Enter session timeout in seconds (default: {DEFAULT_CONFIG['SESSION_TIMEOUT']}): ").strip() or DEFAULT_CONFIG['SESSION_TIMEOUT']
+
+            # Validate inputs
+            if not username or not password:
+                print("Username and password cannot be empty. Please try again.")
+                continue
+
+            try:
+                port = int(port)
+                session_timeout = int(session_timeout)
+                break
+            except ValueError:
+                print("Port and session timeout must be valid integers. Please try again.")
+
+        # Update configuration
+        CONFIG.update({
+            'PORT': port,
+            'SESSION_TIMEOUT': session_timeout,
+            'VALID_CREDENTIALS': {username: password}
+        })
+
+        # Save the configuration to the file
+        try:
+            with open(CONFIG_FILE, 'w') as f:
+                json.dump(CONFIG, f, indent=4)
+            logger.info(f"Configuration saved to {CONFIG_FILE}.")
+        except Exception as e:
+            logger.error(f"Failed to save configuration: {e}")
+            exit(1)
+
+
 class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     """Handle requests in a separate thread."""
     pass
+
 
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def is_authenticated(self):
@@ -78,6 +134,11 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             self.send_response(403)
             self.end_headers()
             self.wfile.write(b"Forbidden")
+        elif self.path == "/logout":
+            self.send_response(302)
+            self.send_header("Set-Cookie", "session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
+            self.send_header("Location", "/static/login.html")
+            self.end_headers()
         elif self.path == "/upload":
             self.upload_file()
         elif self.path.startswith("/delete/"):
@@ -95,10 +156,9 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         username = params.get("username", [""])[0]
         password = params.get("password", [""])[0]
 
-        if username in VALID_CREDENTIALS and VALID_CREDENTIALS[username] == password:
+        if username in CONFIG['VALID_CREDENTIALS'] and CONFIG['VALID_CREDENTIALS'][username] == password:
             self.send_response(302)
             self.send_header("Set-Cookie", "session=authenticated; Path=/; HttpOnly")
-            self.send_header("Set-Cookie", f"timestamp={time.time()}; Path=/; HttpOnly")
             self.send_header("Location", "/")
             self.end_headers()
         else:
@@ -221,10 +281,22 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
+    def send_error_response(self, status_code, message):
+        self.send_response(status_code)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({"error": message}).encode())
+
+
 if __name__ == '__main__':
+    # Load or create configuration
+    load_or_create_config()
+
+    # Ensure upload and static directories exist
     for dir_name in [CONFIG['UPLOAD_DIR'], CONFIG['STATIC_DIR']]:
         os.makedirs(dir_name, exist_ok=True)
-    
+
+    # Start the server
     server_address = ('', CONFIG['PORT'])
     httpd = ThreadingHTTPServer(server_address, SimpleHTTPRequestHandler)
     logger.info(f"Starting server on port {CONFIG['PORT']}...")
