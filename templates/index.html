@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}File Storage{% endblock %}
+
+{% block content %}
+    <div class="container"> {# Container for main content styling #}
+        <h1>File Storage</h1>
+
+        {# REMOVE THIS BLOCK IF IT EXISTS (Flash messages near controls) #}
+        {# {% with messages = get_flashed_messages(with_categories=true) %} #}
+        {#    {% if messages %} #}
+        {#    <div class="flash-messages-local"> #}
+        {#        {% for category, message in messages %} #}
+        {#            <div class="alert alert-{{ category }}">{{ message }}</div> #}
+        {#        {% endfor %} #}
+        {#    </div> #}
+        {#    {% endif %} #}
+        {# {% endwith %} #}
+        {# END OF BLOCK TO REMOVE #}
+
+
+        <div class="controls">
+            <a href="{{ url_for('upload_page') }}" class="button">
+                 <i class="fas fa-upload"></i> Upload New File
+            </a>
+            <button id="refresh-btn" class="button">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+            <form action="{{ url_for('logout') }}" method="post" style="display: inline;">
+                 <button id="logout-btn" type="submit" class="button delete-button">
+                     <i class="fas fa-sign-out-alt"></i> Logout
+                 </button>
+             </form>
+        </div>
+
+        <h2>Files:</h2>
+        <ul class="file-list" id="file-list">
+            <li>Loading files...</li>
+        </ul>
+    </div> {# Close container #}
+{% endblock %}
+
+{# Modals are usually handled by base.html or overridden if needed #}

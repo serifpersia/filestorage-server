@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+
+{# Add login-specific CSS AFTER base CSS #}
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='login.css') }}">
+{% endblock %}
+
+{# Completely override body_content to use login layout #}
+{% block body_content %}
+    <div class="login-container"> {# Specific container for login styles #}
+        <h1>Login</h1>
+
+        {# Display Flash Messages (e.g., invalid credentials) #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages"> {# Styled by login.css #}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {# Use method="post" and Flask's url_for helper #}
+        <form method="post" action="{{ url_for('login', next=request.args.get('next')) }}">
+             {# Add CSRF token if using Flask-WTF #}
+             {# {{ form.csrf_token }} #}
+            <input type="text" name="username" placeholder="Username" required autocomplete="username">
+            <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
+            <button type="submit">Login</button>
+        </form>
+    </div>
+{% endblock %}
+
+{# Override footer block to hide it on the login page #}
+{% block footer %}{% endblock %}
+
+{# Override modals block to hide modals not needed on login page #}
+{% block modals %}{% endblock %}
+
+{# Override extra_js block if no specific JS needed here #}
+{% block extra_js %}{% endblock %}

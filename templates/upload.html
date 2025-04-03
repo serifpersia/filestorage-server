@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Upload File{% endblock %}
+
+{% block content %}
+    <div class="container"> {# Add container for main content styling #}
+        <h1>Upload File</h1>
+
+         {# Flash messages relevant to the upload page context, if any #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages-local">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endwith %}
+
+        {# Form submission is handled by JavaScript (handleUpload) #}
+        {# Remove method/action if relying solely on JS #}
+        <form id="upload-form" enctype="multipart/form-data" class="upload-form">
+            {# Add CSRF token if using Flask-WTF and JS needs it #}
+            {# {{ form.csrf_token }} #}
+            <label for="file-input" class="file-input-label">Choose file or drag here:</label>
+            {# Consider adding a visual drop zone area #}
+            {# <div id="upload-area" class="upload-drop-zone"> Drop files here </div> #}
+            <input type="file" name="file" class="file-input" id="file-input" required>
+            <div class="controls">
+                <button type="submit" class="button">
+                    <i class="fas fa-upload"></i> Upload
+                </button>
+                <a href="{{ url_for('index') }}" class="button cancel-button"> {# Style cancel differently? #}
+                     <i class="fas fa-times"></i> Cancel
+                </a>
+            </div>
+        </form>
+    </div> {# Close container #}
+{% endblock %}
+
+{# Override modals block if needed, or rely on base.html's progress modal #}
+{# {% block modals %} ... {% endblock %} #}

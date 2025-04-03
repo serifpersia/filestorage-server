@@ -1,3 +1,4 @@
 *.log
 /files
 config.json
+/venv

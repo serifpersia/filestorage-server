@@ -1,262 +1,182 @@
 import os
+import json
 import logging
-import urllib.parse
-import mimetypes
-import http.cookies
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from socketserver import ThreadingMixIn
-from threading import Lock
 import time
 import shutil
-import cgi
-import json
-from datetime import datetime
+from datetime import datetime, timedelta
+from functools import wraps
+import secrets # For generating secret key
 
-# Configuration file path
+from flask import (Flask, render_template, request, redirect, url_for, session,
+                   send_from_directory, jsonify, flash, make_response)
+from werkzeug.utils import secure_filename
+
+# --- Configuration ---
 CONFIG_FILE = "config.json"
-
-# Default configuration
 DEFAULT_CONFIG = {
     'UPLOAD_DIR': 'files',
-    'STATIC_DIR': 'static',
+    'STATIC_DIR': 'static', # Flask uses 'static' by default
     'PORT': 8000,
-    'SESSION_TIMEOUT': 60  # in seconds
+    'SESSION_TIMEOUT_MINUTES': 30, # Use minutes for session timeout
+    'VALID_CREDENTIALS': {},
+    'SECRET_KEY': '' # MUST be set for sessions
 }
-
-# Global configuration and session storage
 CONFIG = {}
-SESSIONS = {}  # Store session data with timestamps
-sessions_lock = Lock()  # Lock for thread-safe session operations
 
-# Setup logging to terminal with detailed format
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - ClientIP: %(client_ip)s - SessionID: %(session_id)s - %(message)s'
-)
+# --- Flask App Initialization ---
+app = Flask(__name__, template_folder='templates', static_folder='static')
 
-# Add extra fields to logger for client IP and session ID
+# --- Logging Setup ---
+# Configure Flask's logger
+logging.basicConfig(level=logging.INFO)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - Client: %(client_ip)s - User: %(user)s - %(message)s')
+handler.setFormatter(formatter)
+
+# Add a filter to inject context
 class ContextFilter(logging.Filter):
     def filter(self, record):
-        record.client_ip = getattr(record, 'client_ip', 'N/A')
-        record.session_id = getattr(record, 'session_id', 'N/A')
+        record.client_ip = request.remote_addr if request else 'N/A'
+        record.user = session.get('username', 'anonymous') if session else 'N/A'
         return True
 
-logger.addFilter(ContextFilter())
+app.logger.handlers.clear() # Remove default handlers
+app.logger.addHandler(handler)
+app.logger.addFilter(ContextFilter())
+app.logger.setLevel(logging.INFO)
 
-# Thread-safe file operations
-file_lock = Lock()
-
+# --- Configuration Loading ---
 def load_or_create_config():
-    """Load config from file or create a new one if it doesn't exist."""
+    """Load config from file or create interactively."""
     global CONFIG
-
     if os.path.exists(CONFIG_FILE):
-        logger.info(f"Loading configuration from {CONFIG_FILE}...", extra={'client_ip': 'N/A', 'session_id': 'N/A'})
+        app.logger.info(f"Loading configuration from {CONFIG_FILE}")
         try:
             with open(CONFIG_FILE, 'r') as f:
                 CONFIG = json.load(f)
+            # Ensure essential keys are present, merge with defaults
+            for key, value in DEFAULT_CONFIG.items():
+                CONFIG.setdefault(key, value)
         except Exception as e:
-            logger.error(f"Failed to load configuration: {e}", extra={'client_ip': 'N/A', 'session_id': 'N/A'})
+            app.logger.error(f"Failed to load configuration: {e}", exc_info=True)
             exit(1)
     else:
-        logger.info("Configuration file not found. Creating a new one...", extra={'client_ip': 'N/A', 'session_id': 'N/A'})
+        app.logger.warning("Configuration file not found. Starting interactive setup...")
         CONFIG = DEFAULT_CONFIG.copy()
         while True:
             username = input("Enter admin username: ").strip()
             password = input("Enter admin password: ").strip()
-            port = input(f"Enter server port (default: {DEFAULT_CONFIG['PORT']}): ").strip() or DEFAULT_CONFIG['PORT']
-            session_timeout = input(f"Enter session timeout in seconds (default: {DEFAULT_CONFIG['SESSION_TIMEOUT']}): ").strip() or DEFAULT_CONFIG['SESSION_TIMEOUT']
-
             if not username or not password:
                 print("Username and password cannot be empty. Please try again.")
                 continue
+            CONFIG['VALID_CREDENTIALS'][username] = password
+            break
 
-            try:
-                port = int(port)
-                session_timeout = int(session_timeout)
-                break
-            except ValueError:
-                print("Port and session timeout must be valid integers. Please try again.")
+        port_str = input(f"Enter server port (default: {DEFAULT_CONFIG['PORT']}): ").strip()
+        CONFIG['PORT'] = int(port_str) if port_str.isdigit() else DEFAULT_CONFIG['PORT']
 
-        CONFIG.update({
-            'PORT': port,
-            'SESSION_TIMEOUT': session_timeout,
-            'VALID_CREDENTIALS': {username: password}
-        })
+        timeout_str = input(f"Enter session timeout in MINUTES (default: {DEFAULT_CONFIG['SESSION_TIMEOUT_MINUTES']}): ").strip()
+        CONFIG['SESSION_TIMEOUT_MINUTES'] = int(timeout_str) if timeout_str.isdigit() else DEFAULT_CONFIG['SESSION_TIMEOUT_MINUTES']
+
+        # Generate Secret Key
+        CONFIG['SECRET_KEY'] = secrets.token_hex(24)
+        app.logger.info(f"Generated new SECRET_KEY.")
 
         try:
             with open(CONFIG_FILE, 'w') as f:
                 json.dump(CONFIG, f, indent=4)
-            logger.info(f"Configuration saved to {CONFIG_FILE}.", extra={'client_ip': 'N/A', 'session_id': 'N/A'})
+            app.logger.info(f"Configuration saved to {CONFIG_FILE}.")
         except Exception as e:
-            logger.error(f"Failed to save configuration: {e}", extra={'client_ip': 'N/A', 'session_id': 'N/A'})
+            app.logger.error(f"Failed to save configuration: {e}", exc_info=True)
             exit(1)
 
-class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
-    """Handle requests in a separate thread."""
-    pass
+    # --- Apply Config to Flask App ---
+    app.secret_key = CONFIG.get('SECRET_KEY')
+    if not app.secret_key:
+        app.logger.error("FATAL: SECRET_KEY is not set in config.json or generated. Sessions will not work.")
+        exit(1)
 
-class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
-    def log_message(self, format, *args):
-        """Override default logging to suppress unwanted messages."""
-        pass  # Disable default HTTP logging; we'll use our custom logging
+    app.config['UPLOAD_FOLDER'] = os.path.abspath(CONFIG.get('UPLOAD_DIR', 'files'))
+    app.permanent_session_lifetime = timedelta(minutes=CONFIG.get('SESSION_TIMEOUT_MINUTES', 30))
 
-    def get_session_id(self):
-        """Helper method to get session ID from cookies."""
-        if "Cookie" in self.headers:
-            cookies = http.cookies.SimpleCookie(self.headers["Cookie"])
-            return cookies.get("session_id")
-        return None
+    # Create upload directory if it doesn't exist
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-    def update_session_activity(self, session_id):
-        """Update session last activity timestamp."""
-        with sessions_lock:
-            if session_id in SESSIONS:
-                SESSIONS[session_id]['last_activity'] = time.time()
+# --- Authentication Decorator ---
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'username' not in session:
+            flash('Please log in to access this page.', 'warning')
+            return redirect(url_for('login', next=request.url))
+        # Optional: Implement activity-based timeout refresh here if desired,
+        # but Flask's default permanent_session_lifetime usually suffices.
+        return f(*args, **kwargs)
+    return decorated_function
 
-    def is_authenticated(self):
-        """Check if the user is authenticated and session is still valid."""
-        session_id = self.get_session_id()
-        client_ip = self.client_address[0]
-        if not session_id:
-            return False
-            
-        with sessions_lock:
-            if session_id.value not in SESSIONS:
-                return False
-                
-            last_activity = SESSIONS[session_id.value]['last_activity']
-            current_time = time.time()
-            if (current_time - last_activity) > CONFIG['SESSION_TIMEOUT']:
-                username = SESSIONS[session_id.value]['username']
-                logger.info(f"Session expired due to inactivity for user {username}", extra={'client_ip': client_ip, 'session_id': session_id.value})
-                del SESSIONS[session_id.value]
-                return False
-                
-            return True
+# --- Routes ---
 
-    def do_GET(self):
-        """Handle GET requests."""
-        session_id = self.get_session_id()
-        client_ip = self.client_address[0]
-        logger.info(f"Client connected, requesting: {self.path}", extra={'client_ip': client_ip, 'session_id': session_id.value if session_id else 'N/A'})
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Handles user login."""
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        valid_creds = CONFIG.get('VALID_CREDENTIALS', {})
 
-        if self.path in ["/", "/upload"] and not self.is_authenticated():
-            logger.info("Redirecting unauthenticated client to login", extra={'client_ip': client_ip, 'session_id': 'N/A'})
-            self.send_response(302)
-            self.send_header("Location", "/static/login.html")
-            self.send_header("Set-Cookie", "session_id=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
-            self.end_headers()
-            return
-        
-        if self.path == "/":
-            logger.info("Serving index page", extra={'client_ip': client_ip, 'session_id': session_id.value})
-            self.serve_index()
-        elif self.path == "/api/files":
-            logger.info("Serving file list", extra={'client_ip': client_ip, 'session_id': session_id.value})
-            self.list_files()
-        elif self.path == "/upload":
-            logger.info("Serving upload form", extra={'client_ip': client_ip, 'session_id': session_id.value})
-            self.show_upload_form()
-        elif self.path.startswith("/files/"):
-            self.serve_file()
-        elif self.path.startswith("/static/"):
-            logger.info(f"Serving static file: {self.path}", extra={'client_ip': client_ip, 'session_id': session_id.value if session_id else 'N/A'})
-            self.serve_static()
+        if username in valid_creds and valid_creds[username] == password:
+            session.permanent = True  # Use the configured timeout
+            session['username'] = username
+            app.logger.info(f"Login successful for user '{username}'")
+            flash('Login successful!', 'success')
+            next_url = request.args.get('next')
+            return redirect(next_url or url_for('index'))
         else:
-            logger.info(f"404 - Page not found: {self.path}", extra={'client_ip': client_ip, 'session_id': session_id.value if session_id else 'N/A'})
-            self.send_response(404)
-            self.end_headers()
+            app.logger.warning(f"Login failed for username '{username}'")
+            flash('Invalid username or password.', 'danger')
+            return redirect(url_for('login'))
 
-    def do_POST(self):
-        """Handle POST requests."""
-        session_id = self.get_session_id()
-        client_ip = self.client_address[0]
-        logger.info(f"Client sent POST request to: {self.path}", extra={'client_ip': client_ip, 'session_id': session_id.value if session_id else 'N/A'})
+    # If GET request or login failed previously
+    if 'username' in session:
+        return redirect(url_for('index')) # Redirect if already logged in
+    return render_template('login.html', current_year=datetime.now().year)
 
-        if self.path == "/login":
-            self.handle_login()
-        elif not self.is_authenticated():
-            logger.info("Redirecting unauthenticated client to login", extra={'client_ip': client_ip, 'session_id': 'N/A'})
-            self.send_response(302)
-            self.send_header("Location", "/static/login.html")
-            self.send_header("Set-Cookie", "session_id=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
-            self.end_headers()
-        elif self.path == "/logout":
-            self.handle_logout()
-        elif self.path == "/upload":
-            self.upload_file()
-        elif self.path.startswith("/delete/"):
-            self.delete_file()
-        elif self.path.startswith("/rename/"):
-            self.rename_file()
-        else:
-            logger.info(f"404 - POST endpoint not found: {self.path}", extra={'client_ip': client_ip, 'session_id': session_id.value if session_id else 'N/A'})
-            self.send_response(404)
-            self.end_headers()
 
-    def handle_login(self):
-        """Process login requests and create session."""
-        client_ip = self.client_address[0]
-        content_length = int(self.headers.get("Content-Length", 0))
-        post_data = self.rfile.read(content_length).decode()
-        params = urllib.parse.parse_qs(post_data)
+@app.route('/logout', methods=['POST'])
+@login_required
+def logout():
+    """Logs the user out."""
+    username = session.pop('username', None)
+    app.logger.info(f"User '{username}' logged out.")
+    flash('You have been logged out.', 'info')
+    return redirect(url_for('login'))
 
-        username = params.get("username", [""])[0]
-        password = params.get("password", [""])[0]
 
-        if username in CONFIG['VALID_CREDENTIALS'] and CONFIG['VALID_CREDENTIALS'][username] == password:
-            session_id = str(time.time()) + str(id(self))
-            with sessions_lock:
-                SESSIONS[session_id] = {
-                    'last_activity': time.time(),
-                    'username': username
-                }
-            logger.info(f"Client logged in as {username}", extra={'client_ip': client_ip, 'session_id': session_id})
-            self.send_response(302)
-            self.send_header("Set-Cookie", f"session_id={session_id}; Path=/; HttpOnly")
-            self.send_header("Location", "/")
-            self.end_headers()
-        else:
-            logger.warning("Login failed - invalid credentials", extra={'client_ip': client_ip, 'session_id': 'N/A'})
-            self.send_response(302)
-            self.send_header("Location", "/static/login.html")
-            self.end_headers()
+@app.route('/')
+@login_required
+def index():
+    """Serves the main file listing page."""
+    return render_template('index.html', current_year=datetime.now().year)
 
-    def handle_logout(self):
-        """Handle logout and remove session."""
-        session_id = self.get_session_id()
-        client_ip = self.client_address[0]
-        if session_id and session_id.value in SESSIONS:
-            with sessions_lock:
-                username = SESSIONS[session_id.value]['username']
-                del SESSIONS[session_id.value]
-            logger.info(f"Client logged out manually (username: {username})", extra={'client_ip': client_ip, 'session_id': session_id.value})
-        
-        self.send_response(302)
-        self.send_header("Set-Cookie", "session_id=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
-        self.send_header("Location", "/static/login.html")
-        self.end_headers()
 
-    def serve_index(self):
-        """Serve the index.html file."""
-        with open(os.path.join(CONFIG['STATIC_DIR'], 'index.html'), 'r', encoding='utf-8') as file:
-            content = file.read()
-        self.send_response(200)
-        self.send_header('Content-Type', 'text/html; charset=utf-8')
-        self.end_headers()
-        self.wfile.write(content.encode('utf-8'))
+@app.route('/upload', methods=['GET'])
+@login_required
+def upload_page():
+    """Serves the file upload page."""
+    return render_template('upload.html', current_year=datetime.now().year)
 
-    def list_files(self):
-        """Return JSON list of files."""
-        with file_lock:
-            if not os.path.exists(CONFIG['UPLOAD_DIR']):
-                os.makedirs(CONFIG['UPLOAD_DIR'])
-            files = []
-            for filename in os.listdir(CONFIG['UPLOAD_DIR']):
-                filepath = os.path.join(CONFIG['UPLOAD_DIR'], filename)
-                if os.path.isfile(filepath):
+
+@app.route('/api/files', methods=['GET'])
+@login_required
+def list_files():
+    """API endpoint to list files in the upload directory."""
+    files = []
+    upload_dir = app.config['UPLOAD_FOLDER']
+    try:
+        for filename in os.listdir(upload_dir):
+            filepath = os.path.join(upload_dir, filename)
+            if os.path.isfile(filepath):
+                try:
                     file_size = os.path.getsize(filepath)
                     modified_time = os.path.getmtime(filepath)
                     modified_date = datetime.fromtimestamp(modified_time).strftime('%Y-%m-%d %H:%M:%S')
@@ -265,219 +185,177 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                         'size': file_size,
                         'modified': modified_date
                     })
-        
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        self.wfile.write(json.dumps({'files': files}).encode())
+                except OSError as e:
+                     app.logger.error(f"Could not get info for file: {filepath} - {e}")
 
-    def show_upload_form(self):
-        """Serve the upload form."""
-        with open(os.path.join(CONFIG['STATIC_DIR'], 'upload.html'), 'r', encoding='utf-8') as file:
-            content = file.read()
-        self.send_response(200)
-        self.send_header('Content-Type', 'text/html; charset=utf-8')
-        self.end_headers()
-        self.wfile.write(content.encode('utf-8'))
+        # Sort files by name, case-insensitive
+        files.sort(key=lambda x: x['name'].lower())
 
-    def serve_file(self):
-        """Serve requested file for download and keep session active."""
-        session_id = self.get_session_id()
-        client_ip = self.client_address[0]
-        if not session_id or session_id.value not in SESSIONS:
-            logger.warning("Unauthorized file access attempt", extra={'client_ip': client_ip, 'session_id': 'N/A'})
-            self.send_response(403)
-            self.end_headers()
-            return
+    except FileNotFoundError:
+         app.logger.warning(f"Upload directory not found: {upload_dir}")
+         # Directory should have been created at startup, but handle anyway
+         os.makedirs(upload_dir, exist_ok=True)
+    except Exception as e:
+        app.logger.error(f"Error listing files: {e}", exc_info=True)
+        return jsonify({"error": "Could not list files"}), 500
 
-        filepath = os.path.join(CONFIG['UPLOAD_DIR'], urllib.parse.unquote(self.path[7:]))
-        filename = os.path.basename(filepath)
-        
-        if os.path.isfile(filepath):
-            logger.info(f"Client started downloading file: {filename}", extra={'client_ip': client_ip, 'session_id': session_id.value})
-            self.send_response(200)
-            mime_type, _ = mimetypes.guess_type(filepath)
-            file_size = os.path.getsize(filepath)
+    return jsonify({'files': files})
 
-            self.send_header('Content-Type', mime_type or 'application/octet-stream')
-            self.send_header('Content-Length', str(file_size))
-            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
-            self.end_headers()
 
-            chunk_size = 1024 * 64
-            bytes_served = 0
-            with open(filepath, 'rb') as file:
-                while chunk := file.read(chunk_size):
-                    self.wfile.write(chunk)
-                    self.wfile.flush()
-                    bytes_served += len(chunk)
-                    logger.info(f"Serving {filename}: {bytes_served}/{file_size} bytes", extra={'client_ip': client_ip, 'session_id': session_id.value})
-                    self.update_session_activity(session_id.value)  # Update session during download
-            
-            logger.info(f"Client finished downloading file: {filename}", extra={'client_ip': client_ip, 'session_id': session_id.value})
-            self.update_session_activity(session_id.value)  # Final update after download
-        else:
-            logger.warning(f"File not found: {filename}", extra={'client_ip': client_ip, 'session_id': session_id.value})
-            self.send_response(404)
-            self.end_headers()
-
-    def upload_file(self):
-        """Handle file uploads and keep session active."""
-        session_id = self.get_session_id()
-        client_ip = self.client_address[0]
-        if not session_id or session_id.value not in SESSIONS:
-            logger.warning("Unauthorized upload attempt", extra={'client_ip': client_ip, 'session_id': 'N/A'})
-            self.send_response(403)
-            self.end_headers()
-            return
-
-        content_length = int(self.headers.get('Content-Length', 0))
-        content_type, pdict = cgi.parse_header(self.headers['Content-Type'])
-        if content_type != 'multipart/form-data':
-            logger.error("Invalid form data for upload", extra={'client_ip': client_ip, 'session_id': session_id.value})
-            self.send_error_response(400, "Invalid form data")
-            return
-
-        pdict['boundary'] = bytes(pdict['boundary'], 'utf-8')
-        form = cgi.FieldStorage(
-            fp=self.rfile,
-            headers=self.headers,
-            environ={'REQUEST_METHOD': 'POST', 'CONTENT_TYPE': self.headers['Content-Type']}
+@app.route('/files/<path:filename>')
+@login_required
+def download_file(filename):
+    """Serves a file for download."""
+    app.logger.info(f"Download requested for file: {filename}")
+    try:
+        # Ensure filename is safe and path traversal isn't possible
+        # send_from_directory handles this well
+        return send_from_directory(
+            app.config['UPLOAD_FOLDER'],
+            filename,
+            as_attachment=True
         )
+    except FileNotFoundError:
+        app.logger.warning(f"Download failed: File not found - {filename}")
+        flash(f"File '{filename}' not found.", 'danger')
+        return redirect(url_for('index')), 404
+    except Exception as e:
+        app.logger.error(f"Error sending file {filename}: {e}", exc_info=True)
+        flash(f"Error downloading file '{filename}'.", 'danger')
+        return redirect(url_for('index')), 500
 
-        if 'file' not in form:
-            logger.error("No file uploaded", extra={'client_ip': client_ip, 'session_id': session_id.value})
-            self.send_error_response(400, "No file uploaded")
-            return
 
-        file_item = form['file']
-        filename = os.path.basename(file_item.filename)
-        if not filename:
-            logger.error("Invalid filename for upload", extra={'client_ip': client_ip, 'session_id': session_id.value})
-            self.send_error_response(400, "Invalid filename")
-            return
+@app.route('/upload', methods=['POST'])
+@login_required
+def upload_file():
+    """Handles file uploads."""
+    if 'file' not in request.files:
+        app.logger.warning("Upload attempt with no file part")
+        return jsonify({"success": False, "error": "No file part in the request"}), 400
 
-        filepath = os.path.join(CONFIG['UPLOAD_DIR'], filename)
-        with file_lock:
-            if os.path.exists(filepath):
-                filepath = os.path.join(CONFIG['UPLOAD_DIR'], f"{int(time.time())}_{filename}")
+    file = request.files['file']
+    if file.filename == '':
+        app.logger.warning("Upload attempt with no selected file")
+        return jsonify({"success": False, "error": "No selected file"}), 400
 
-            logger.info(f"Client started uploading file: {filename}", extra={'client_ip': client_ip, 'session_id': session_id.value})
-            chunk_size = 1024 * 64
-            bytes_written = 0
-            with open(filepath, 'wb') as f:
-                while True:
-                    chunk = file_item.file.read(chunk_size)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-                    f.flush()
-                    bytes_written += len(chunk)
-                    logger.info(f"Uploading {filename}: {bytes_written} bytes", extra={'client_ip': client_ip, 'session_id': session_id.value})
-                    self.update_session_activity(session_id.value)  # Update session during upload
+    if file:
+        # Sanitize filename
+        filename = secure_filename(file.filename)
+        upload_dir = app.config['UPLOAD_FOLDER']
+        filepath = os.path.join(upload_dir, filename)
 
-        logger.info(f"Client finished uploading file: {filename}", extra={'client_ip': client_ip, 'session_id': session_id.value})
-        self.update_session_activity(session_id.value)  # Final update after upload
+        # Handle potential filename collisions (optional: add timestamp or counter)
+        counter = 1
+        base, ext = os.path.splitext(filename)
+        while os.path.exists(filepath):
+            filepath = os.path.join(upload_dir, f"{base}_{counter}{ext}")
+            counter += 1
+        final_filename = os.path.basename(filepath) # Get the potentially modified filename
 
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        response = {"success": True, "message": "Upload successful", "filename": filename}
-        self.wfile.write(json.dumps(response).encode())
-
-    def delete_file(self):
-        """Handle file deletion."""
-        session_id = self.get_session_id()
-        client_ip = self.client_address[0]
-        filepath = os.path.join(CONFIG['UPLOAD_DIR'], urllib.parse.unquote(self.path[8:]))
-        filename = os.path.basename(filepath)
-        with file_lock:
-            if os.path.isfile(filepath):
-                os.remove(filepath)
-                logger.info(f"File deleted: {filename}", extra={'client_ip': client_ip, 'session_id': session_id.value})
-                self.send_response(302)
-                self.send_header('Location', '/')
-                self.end_headers()
-            else:
-                logger.warning(f"File not found for deletion: {filename}", extra={'client_ip': client_ip, 'session_id': session_id.value})
-                self.send_error_response(404, "File not found")
-
-    def rename_file(self):
-        """Handle file rename requests."""
-        session_id = self.get_session_id()
-        client_ip = self.client_address[0]
-        old_filename = urllib.parse.unquote(self.path[8:])
-        old_filepath = os.path.join(CONFIG['UPLOAD_DIR'], old_filename)
-
-        content_length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_length).decode('utf-8')
         try:
-            request_data = json.loads(body)
-            new_filename = request_data.get('new_filename')
-        except json.JSONDecodeError:
-            logger.error("Invalid JSON for rename request", extra={'client_ip': client_ip, 'session_id': session_id.value})
-            self.send_error_response(400, "Invalid JSON")
-            return
+            app.logger.info(f"Starting upload for: {file.filename} as {final_filename}")
+            file.save(filepath)
+            app.logger.info(f"File uploaded successfully: {final_filename}")
+            # flash(f"File '{final_filename}' uploaded successfully!", 'success') # Flash might not be seen due to JS redirect
+            return jsonify({"success": True, "message": f"File '{final_filename}' uploaded successfully!"}), 201
+        except Exception as e:
+            app.logger.error(f"Failed to save uploaded file {final_filename}: {e}", exc_info=True)
+            return jsonify({"success": False, "error": "Failed to save file on server"}), 500
 
-        if not new_filename:
-            logger.error("New filename is required for rename", extra={'client_ip': client_ip, 'session_id': session_id.value})
-            self.send_error_response(400, "New filename is required")
-            return
+    return jsonify({"success": False, "error": "Unknown upload error"}), 500
 
-        new_filepath = os.path.join(CONFIG['UPLOAD_DIR'], new_filename)
 
-        with file_lock:
-            if not os.path.isfile(old_filepath):
-                logger.warning(f"File not found for rename: {old_filename}", extra={'client_ip': client_ip, 'session_id': session_id.value})
-                self.send_error_response(404, "File not found")
-                return
+@app.route('/delete/<path:filename>', methods=['POST'])
+@login_required
+def delete_file(filename):
+    """Deletes a specified file."""
+    # Sanitize filename just in case, though it comes from our list
+    filename = secure_filename(filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
-            if os.path.exists(new_filepath):
-                logger.error(f"File already exists: {new_filename}", extra={'client_ip': client_ip, 'session_id': session_id.value})
-                self.send_error_response(409, "File already exists")
-                return
+    app.logger.info(f"Delete requested for file: {filename}")
+    if os.path.isfile(filepath):
+        try:
+            os.remove(filepath)
+            app.logger.info(f"File deleted successfully: {filename}")
+            # flash(f"File '{filename}' deleted.", 'success') # JS handles UI update
+            return jsonify({"success": True, "message": f"File '{filename}' deleted."}), 200
+        except Exception as e:
+            app.logger.error(f"Error deleting file {filename}: {e}", exc_info=True)
+            return jsonify({"success": False, "error": f"Could not delete file '{filename}'."}), 500
+    else:
+        app.logger.warning(f"Delete failed: File not found - {filename}")
+        return jsonify({"success": False, "error": f"File '{filename}' not found."}), 404
 
-            try:
-                os.rename(old_filepath, new_filepath)
-                logger.info(f"File renamed from {old_filename} to {new_filename}", extra={'client_ip': client_ip, 'session_id': session_id.value})
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({"success": True, "message": "File renamed successfully"}).encode('utf-8'))
-            except Exception as e:
-                logger.error(f"Error renaming file: {e}", extra={'client_ip': client_ip, 'session_id': session_id.value})
-                self.send_error_response(500, "Failed to rename file")
 
-    def serve_static(self):
-        """Serve static files."""
-        filepath = os.path.join(CONFIG['STATIC_DIR'], self.path[len('/static/'):])
-        if os.path.isfile(filepath):
-            self.send_response(200)
-            mime_type, _ = mimetypes.guess_type(filepath)
-            self.send_header('Content-Type', mime_type or 'text/plain')
-            self.end_headers()
-            with open(filepath, 'rb') as file:
-                self.wfile.write(file.read())
-        else:
-            self.send_response(404)
-            self.end_headers()
+@app.route('/rename/<path:old_filename>', methods=['POST'])
+@login_required
+def rename_file(old_filename):
+    """Renames a specified file."""
+    data = request.get_json()
+    if not data or 'new_filename' not in data:
+        return jsonify({"success": False, "error": "Missing 'new_filename' in request"}), 400
 
-    def send_error_response(self, status_code, message):
-        """Send error response in JSON format."""
-        self.send_response(status_code)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        self.wfile.write(json.dumps({"error": message}).encode())
+    new_filename_raw = data['new_filename'].strip()
+    if not new_filename_raw:
+         return jsonify({"success": False, "error": "New filename cannot be empty"}), 400
 
+    # Sanitize both filenames
+    old_filename_safe = secure_filename(old_filename)
+    new_filename_safe = secure_filename(new_filename_raw)
+
+    if not new_filename_safe: # Check if sanitization resulted in empty string
+        return jsonify({"success": False, "error": "Invalid new filename provided"}), 400
+
+    old_filepath = os.path.join(app.config['UPLOAD_FOLDER'], old_filename_safe)
+    new_filepath = os.path.join(app.config['UPLOAD_FOLDER'], new_filename_safe)
+
+    app.logger.info(f"Rename requested: '{old_filename_safe}' -> '{new_filename_safe}'")
+
+    if not os.path.isfile(old_filepath):
+        app.logger.warning(f"Rename failed: Source file not found - {old_filename_safe}")
+        return jsonify({"success": False, "error": f"Original file '{old_filename_safe}' not found."}), 404
+
+    if os.path.exists(new_filepath):
+        app.logger.warning(f"Rename failed: Target file already exists - {new_filename_safe}")
+        return jsonify({"success": False, "error": f"File '{new_filename_safe}' already exists."}), 409 # Conflict
+
+    try:
+        os.rename(old_filepath, new_filepath)
+        app.logger.info(f"File renamed successfully: '{old_filename_safe}' -> '{new_filename_safe}'")
+        return jsonify({"success": True, "message": "File renamed successfully."}), 200
+    except Exception as e:
+        app.logger.error(f"Error renaming file {old_filename_safe} to {new_filename_safe}: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Failed to rename file on server."}), 500
+
+
+# --- Error Handlers ---
+@app.errorhandler(404)
+def page_not_found(e):
+    app.logger.warning(f"404 Not Found: {request.path}")
+    # You can render a custom 404 template
+    # return render_template('404.html'), 404
+    return jsonify({"error": "Not Found", "message": "The requested URL was not found on the server."}), 404
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    app.logger.error(f"500 Internal Server Error: {e}", exc_info=True)
+    # return render_template('500.html'), 500
+    return jsonify({"error": "Internal Server Error", "message": "An unexpected error occurred."}), 500
+
+@app.errorhandler(405) # Method Not Allowed
+def method_not_allowed(e):
+    app.logger.warning(f"405 Method Not Allowed: {request.method} for {request.path}")
+    return jsonify({"error": "Method Not Allowed", "message": "The method is not allowed for the requested URL."}), 405
+
+
+# --- Main Execution ---
 if __name__ == '__main__':
     load_or_create_config()
-    for dir_name in [CONFIG['UPLOAD_DIR'], CONFIG['STATIC_DIR']]:
-        os.makedirs(dir_name, exist_ok=True)
-    server_address = ('', CONFIG['PORT'])
-    httpd = ThreadingHTTPServer(server_address, SimpleHTTPRequestHandler)
-    logger.info(f"Server started on port {CONFIG['PORT']}", extra={'client_ip': 'N/A', 'session_id': 'N/A'})
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        logger.info("Server shutting down...", extra={'client_ip': 'N/A', 'session_id': 'N/A'})
-        httpd.server_close()
+    port = CONFIG.get('PORT', 8000)
+    app.logger.info(f"Starting Flask server on http://0.0.0.0:{port}")
+    app.logger.info(f"Upload directory: {app.config['UPLOAD_FOLDER']}")
+    app.logger.info(f"Session timeout: {app.permanent_session_lifetime}")
+    # Use host='0.0.0.0' to make it accessible on your local network
+    # Use debug=True only for development, NEVER in production
+    app.run(host='0.0.0.0', port=port, debug=False) # Set debug=True for development reload & debugger

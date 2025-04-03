@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}File Storage{% endblock %}</title>
+    <!-- Base Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- Placeholder for extra page-specific CSS -->
+    {% block extra_css %}{% endblock %}
+    <!-- Add CSRF token meta tag if using Flask-WTF -->
+    {# <meta name="csrf-token" content="{{ csrf_token() }}"> #}
+</head>
+<body>
+    {# Main content block - pages should include their own container if needed #}
+    {% block body_content %}
+        {# Optional global flash message container outside main content area #}
+        <div class="flash-messages-container">
+             {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        {% block content %}{% endblock %} {# Main page content goes here #}
+    {% endblock %}
+
+    {# Block for modals - pages can override or extend this #}
+    {% block modals %}
+        <!-- Rename Modal (Common - place here or in index.html block) -->
+        <div id="rename-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-button">×</span> {# Use × for 'x' #}
+                <h2>Rename File</h2>
+                <input type="text" id="new-filename" placeholder="Enter new filename">
+                <button id="rename-confirm-btn" class="button rename-button">Rename</button> {# Use specific class #}
+            </div>
+        </div>
+
+        <!-- Progress Modal (Common - place here or in upload.html block) -->
+        <div id="progress-modal" class="progress-modal"> {# Use display:flex/none controlled by JS #}
+            <div class="progress-modal-content">
+                <p id="progress-text">Uploading...</p>
+                <div class="progress-bar">
+                    <div class="progress-bar-fill" id="progress-bar-fill"></div>
+                </div>
+            </div>
+        </div>
+    {% endblock %}
+
+
+    {% block footer %}
+    <footer>
+        <!-- Use dynamic year -->
+        © {{ current_year if current_year else '2025' }} serifpersia.
+        <a href="https://github.com/serifpersia" class="github-link" target="_blank" rel="noopener noreferrer">
+            <i class="fab fa-github"></i> GitHub
+        </a>
+    </footer>
+    {% endblock %}
+
+    <!-- Core JavaScript -->
+    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+    <!-- Placeholder for extra page-specific JS -->
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
